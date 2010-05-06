@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Module>
+  <ModulePrefs
+    title="Sprint Developer Location Widget"
+    height="320"
+    scrolling="true"
+    description="Locate your Friends.">
+		<Require feature="minimessage"/>
+		<Require feature="setprefs"/>
+  </ModulePrefs>
+	<UserPref name="apiKey"  display_name="Sandbox API Key" />
+	<UserPref name="mdnlist" display_name="Friends Numbers" datatype="list" />
+  <Content type="html"><![CDATA[
+        <script type="text/javascript" src="http://www.google.com/jsapi?key=ABQIAAAA5LI4QlHTAeDFphZ6PxIzfhTEWc-_wWFjJjNUaw7zr22p6IeVSxSYksVwHDItG8_MeHXFUg4uU-rhcA"></script>
+        <script type="text/javascript">
+          google.load("maps", "2");
+					var msg = new gadgets.MiniMessage(__MODULE_ID__);
+					var prefs = new gadgets.Prefs();
+
+          // Call this function when the page has been loaded
+          function ___MODULE_ID___initialize() {
+						var apiKey = prefs.getArray("apiKey");
+						var container = document.getElementById("___MODULE_ID___content");
+						if(apiKey.length > 0){
+							container.innerHTML = ___MODULE_ID___Sprint.setupGadget();
+							
+							var map = new google.maps.Map2(document.getElementById("___MODULE_ID___map"));
+			            map.setCenter(new google.maps.LatLng(39.368279,-96.679688), 2);
+			            map.addControl(new google.maps.SmallZoomControl());
+
+						} else {
+							container.innerHTML = ___MODULE_ID___Sprint.promptParams();
+						}
+          }
+
+          var ___MODULE_ID___Sprint = {
+            // Variables
+            locationURL: "http://sprintdevelopersandbox.com/devSandbox/resources/location.json",
+						phoneListURL: "http://sprintdevelopersandbox.com/SandboxWS/resources/phones.json" 
+						interval: 0, // seconds; 5 mins (300)
+						zoomLevel: 14,
+						errorMsgDelay: 5,
+						retry_flag: true, // Retry Location Request Flag
+						retryDelay: 2,
+						errorMsg:{
+							unable2locate: "Unable to Locate that number at this time. "
+						},
+
+            // Functions
+            updateMap: function(response){
+              // print(gadgets.json.stringify(response));
+							msg.dismissMessage(___MODULE_ID___Sprint.locateMsg);
+
+							if(response["rc"] === 504){
+								if(___MODULE_ID___Sprint.retry_flag == true){
+									___MODULE_ID___Sprint.retry_flag = false;
+									msg.createTimerMessage("Trying one more time...",
+										___MODULE_ID___Sprint.errorMsgDelay + ___MODULE_ID___Sprint.retryDelay);
+									window.setTimeout("___MODULE_ID___Sprint.sendLocationRequest()",
+										___MODULE_ID___Sprint.retryDelay * 1000);
+								} else {
+									___MODULE_ID___Sprint.printError(___MODULE_ID___Sprint.errorMsg.unable2locate);
+								}
+								return false;
+							}
+
+              var obj = response["data"];
+							if( obj["error"] === undefined ){
+	              var target = new google.maps.LatLng(obj["lat"], obj["lon"])
+	              var marker = new google.maps.Marker(target);
+	              var map = new google.maps.Map2(document.getElementById("___MODULE_ID___map"));
+	              map.setCenter(target, ___MODULE_ID___Sprint.zoomLevel);
+	              map.addControl(new google.maps.SmallZoomControl());
+	              map.addOverlay(marker);
+							} else {
+								___MODULE_ID___Sprint.printError(
+									___MODULE_ID___Sprint.errorMsg.unable2locate + ": " + obj["error"]);
+							}
+            },
+
+						printError: function(errorMsg){
+							___MODULE_ID___Sprint.locateMsg = msg.createDismissibleMessage(errorMsg);
+						},
+
+            locate: function(){
+								___MODULE_ID___Sprint.locateMsg = msg.createDismissibleMessage("Locating...");
+								___MODULE_ID___Sprint.retry_flag = true;
+								___MODULE_ID___Sprint.sendLocationRequest();
+            },
+
+						sendLocationRequest: function(){
+              var params = {};
+	            var prefs = new gadgets.Prefs();
+              var data = {
+								mdn:document.getElementById("___MODULE_ID___target").value,
+								key:prefs.getArray("apiKey"),
+								"nocache":this.refreshInterval(this.interval)
+							};
+              var url = [this.locationURL, "?", gadgets.io.encodeValues(data)].join("");
+              // print(url);
+
+              params[gadgets.io.RequestParameters.CONTENT_TYPE] = gadgets.io.ContentType.JSON;
+              params[gadgets.io.RequestParameters.METHOD] = gadgets.io.MethodType.GET;
+
+              gadgets.io.makeRequest(url, this.updateMap, params);
+						},
+
+						refreshInterval: function(interval){
+							var ts = new Date().getTime();
+						  if (interval && interval > 0) {
+						    ts = Math.floor(ts / (interval * 1000));
+						  }
+						  return ts;
+						},
+
+						setupGadget: function(){
+							var mdns = prefs.getArray("mdnlist");
+							var html = new Array();
+
+							html.push('<div id="___MODULE_ID___map" style="width: 100%; height: 200px"></div>');
+							html.push('<form name="__MODULE_ID___form" action="javascript:void(0);" method="GET">');
+							html.push('<label>Where in the world is ...?</label>');
+
+							html.push('<input type="submit" style="width: 100px;" value="Find" onclick="___MODULE_ID___Sprint.locate();"/>');
+							html.push('</form>');
+							html.push('<p style="color:#333; font-size: 0.75em;">For more information visit ');
+							html.push('<a target="_blank" href="http://sprintdevelopersandbox.com">http://sprintdevelopersandbox.com</a>.');
+							html.push('<br/>Add more numbers or change settings from the edit menu.</p>');
+
+							return html.join("");
+						},
+
+						promptParams: function(){
+							var html = new Array();
+							html.push('<p style="font-size:0.75em;">To get a Sprint API key with a trackable Phone Number, register an account the Sprint Developer Sandbox, ');
+							html.push('<a target="_blank" href="http://sprintdevelopersandbox.com">http://sprintdevelopersandbox.com</a>.</p>');
+							html.push('<hr/>');
+							html.push('<form name="__MODULE_ID___form" action="javascript:void(0);" method="GET">');
+		          html.push('<label style="font-size:0.75em;">Sprint Sandbox API Key:<br/>');
+		          html.push('<span style="color:#333; font-size: 0.75em;">e.g. b527sba6db6</span></label><br/>');
+							html.push('<input type="text" maxlength="250" size="15" name="___MODULE_ID___apiKey" id="___MODULE_ID___apiKey"><br/><br/>');
+		          html.push('<input type="submit" style="width: 100px;" value="Save" onclick="___MODULE_ID___Sprint.saveParams(this);"/>');
+			        html.push('</form>');
+							html.push('<p style="color:#333; font-size: 0.75em;">For more information visit ');
+							html.push('<a target="_blank" href="http://sprintdevelopersandbox.com">http://sprintdevelopersandbox.com</a>.</p>');
+	            return html.join("");
+						},
+
+						saveParams: function(form){
+							var apiKey = prefs.getArray("apiKey");
+							var givenAPIKey = document.getElementById("___MODULE_ID___apiKey").value;
+							prefs.set("apiKey",givenAPIKey);
+
+							___MODULE_ID___initialize();
+						},
+
+						loadPhoneList: function(){
+							var params = {};
+	            var prefs = new gadgets.Prefs();
+              var data = {
+								key:prefs.getArray("apiKey"),
+								"nocache":this.refreshInterval(this.interval)
+							};
+              var url = [this.phoneListURL, "?", gadgets.io.encodeValues(data)].join("");
+              print(url);
+
+							var callback = function(data){
+								print(data);
+								// html.push('<select id="___MODULE_ID___target" style="width: 200px;">');
+								// 		            // If the user has not added any mdn yet, display message.
+								// 		            if (mdns.length > 0){
+								// 		              for (var i = 0; i < mdns.length ; i++) {
+								// 		                var mdn = mdns[i];
+								// 		                html.push("<option value=\""+ mdn +"\">" + mdn + "</option>" + "<br />");
+								// 		              }
+								// 		            }
+								// 		            html.push('</select><br/>');								
+							}
+
+              params[gadgets.io.RequestParameters.CONTENT_TYPE] = gadgets.io.ContentType.JSON;
+              params[gadgets.io.RequestParameters.METHOD] = gadgets.io.MethodType.GET;
+
+              gadgets.io.makeRequest(url, callback, params);              
+						}
+          };
+
+          // debug flag. When its value is non-zero, debugging messages are displayed
+          var debug = 1;
+          // The string containing debugging messages
+          var debug_html = "";
+
+          function print(msg) {
+            if (debug) {
+              debug_html += msg + "<br/>";
+              // Write debug HTML to div
+              document.getElementById("debug_div").innerHTML = debug_html;
+            }
+          }
+
+          google.setOnLoadCallback(___MODULE_ID___initialize);
+        </script>
+				<div id="___MODULE_ID___content">
+				</div
+        <div id="debug_div" style="font-size:9pt; padding:5px; color: red;"></div>
+      ]]></Content>
+</Module>
